@@ -12,3 +12,5 @@ cd rpi-framebuffer
 make
 ./fire8
 ```
+
+Post en español en mi blog: http://drmad.org/blog/jugando-con-el-framebuffer-de-linux-en-raspberry-pi.html
