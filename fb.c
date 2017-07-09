@@ -13,10 +13,11 @@
 
 #include "fb.h"
 
-/** Inicializa el framebuffer, y un buffer intermedio.
+/**
+ * Inicializa el framebuffer, y un buffer intermedio.
  */ 
 int fb_init( char bpp ) {
-    fb_fd = open ( "/dev/fb0", O_RDWR );
+    fb_fd = open ("/dev/fb0", O_RDWR);
     if (fb_fd == -1) {
         printf("Error: No puede abrir el framebuffer!\n");
         return(1);
@@ -32,6 +33,7 @@ int fb_init( char bpp ) {
     
     // Cambiamos al BPP pedido
     fb_vinfo.bits_per_pixel = bpp;
+    fb_vinfo.yres_virtual = fb_vinfo.yres * 3; // Triplicamos para los buffers
     if (ioctl(fb_fd, FBIOPUT_VSCREENINFO, &fb_vinfo)) {
         printf("No pude cambiar el tamaño del pixel.\n");
     }
@@ -39,24 +41,25 @@ int fb_init( char bpp ) {
     // Guardamos la resolución y los bpp
     fb_sx = fb_vinfo.xres;
     fb_sy = fb_vinfo.yres;
+    fb_size = fb_sx * fb_sy;
     fb_bpp = fb_vinfo.bits_per_pixel;
     
 
-    printf("Pantalla: %dx%d, %d bpp\n", 
+    printf("Pantalla: %dx%d (%dx%d virtual) %d bpp (%d smen_len)\n", 
          fb_vinfo.xres, fb_vinfo.yres, 
-         fb_vinfo.bits_per_pixel );
+         fb_vinfo.xres_virtual, fb_vinfo.yres_virtual,
+         fb_vinfo.bits_per_pixel,
+         fb_finfo.smem_len);
 
-    fb_p = (char *)mmap (0, fb_finfo.smem_len,
-            PROT_READ | PROT_WRITE,
+    // Obtenemos el triple de memoria
+    fb_buffers[0] = (unsigned char *)mmap (0, fb_finfo.smem_len,
+            PROT_WRITE,
             MAP_SHARED,
-            fb_fd, 0 );
+            fb_fd, 0);
 
-    // Creamos un buffer
-    fb_buffer = malloc ( fb_finfo.smem_len );
+    fb_buffers[1] = fb_buffers[0] + fb_size;
+    fb_buffers[2] = fb_buffers[0] + (fb_size * 2);
 
-    // Lo limpiamos a negro
-    memset ( fb_buffer, 0, fb_finfo.smem_len ) ;
-    
     return 0;
 }
 
@@ -80,9 +83,7 @@ void fb_putpal ( unsigned short r[], unsigned short g[], unsigned short b[] ) {
 
 void fb_close() {
     // Cerramos todo;
-    free ( fb_buffer );
- 
-    munmap(fb_p, fb_finfo.smem_len);
+    munmap(fb_buffers, fb_finfo.smem_len);
     close(fb_fd);
 
 }
@@ -94,22 +95,22 @@ inline void fb_pixel32 ( int x, int y, unsigned char color[] ) {
     int ofs = y * fb_finfo.line_length + (x << 2);
 
     // Copiamos los 4 bytes sin asco.
-    memcpy ( (char *)(fb_buffer + ofs), color, 4 );
+    memcpy ( (char *)(buf_work + ofs), color, 4 );
 }
 inline void fb_getpixel32 ( int x, int y, unsigned char *color ) {
     int ofs = y * fb_finfo.line_length + (x << 2);
 
     // Copiamos los 4 bytes sin asco.
-    memcpy ( color, (char *)(fb_buffer + ofs), 4 );
+    memcpy (color, (char *)(buf_work + ofs), 4 );
 }
 
 inline void fb_pixel8 ( int x, int y, unsigned char color ) {
-    *( (char *)(fb_buffer + y * fb_finfo.line_length + x) ) = color;
+    *( (char *)(buf_work + y * fb_finfo.line_length + x) ) = color;
 }
 inline char fb_getpixel8 ( int x, int y ) {
     int ofs = y * fb_finfo.line_length + x;
 
-    return *( (char *)(fb_buffer + ofs) ) ;
+    return *( (char *)(buf_work + ofs) ) ;
 }
 
 /** 
@@ -117,7 +118,7 @@ inline char fb_getpixel8 ( int x, int y ) {
  */
 inline void fb_draw() {
     
-    memcpy ( fb_p, fb_buffer, fb_finfo.smem_len );
+    memcpy (fb_buffers, buf_work, fb_finfo.smem_len );
 }
 
 

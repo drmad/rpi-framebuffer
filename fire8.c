@@ -14,7 +14,7 @@
 
 // Cuando se descomenta la siguiente línea, muestra en la consola el tiempo
 // en microsegundos que toma ejecutar ciertas partes de este programa. 
-//#define PROFILING
+// #define PROFILING
 
 // Cantidad de numeros random para el lookup table
 #define MAXRAND 10240
@@ -32,10 +32,14 @@ int main(int argc, char* argv[]) {
     char *p;
 
     // Inicializamos el framebuffer.
-    fb_init( 8 );
+    fb_init(8);
+
+    // Creamos un buffer de trabako
+    unsigned char *buffer = malloc(fb_size);
+    fb_buffer_pointer = buffer;
 
     // Creamos una rampa de colores bonita.
-    for ( i = 0; i < 64; i++ ) {
+    for (i = 0; i < 64; i++) {
         // Negro a rojo
         b[i] = 0;
         g[i] = 0;
@@ -66,11 +70,11 @@ int main(int argc, char* argv[]) {
     fb_putpal ( r, g, b );
 
     // Un lookup table de valores randoms, 
-    signed char rf[MAXRAND];
+    unsigned int rf[MAXRAND];
     int rf_c = 0;
-    
+   
     for ( i = 0; i < MAXRAND; i++ ) {
-        rf[i] = (rand() % 41) - 21;
+        rf[i] = rand();
     }
 
     // Puntero a la memoria donde almacenaremos el loguito mono.
@@ -81,11 +85,11 @@ int main(int argc, char* argv[]) {
     int logo_h = 522; 
     
     // Obtenemos un pedazo de memoria
-    logo = malloc ( logo_w * logo_h );
+    logo = malloc(logo_w * logo_h);
     
     // Abriemos el fichero de datos, y lo leemos
-    int f = open ( "fury-road.dat", O_RDONLY );
-    read ( f, logo, logo_w * logo_h );
+    int f = open ( "fury-road.dat", O_RDONLY);
+    read (f, logo, logo_w * logo_h);
     close (f);
     
 
@@ -109,7 +113,7 @@ int main(int argc, char* argv[]) {
     struct timeval stop,start;
     #endif
     
-    while ( 1 ) {
+    while (1) {
 
         #ifdef PROFILING    
         gettimeofday (&start, NULL );
@@ -117,25 +121,29 @@ int main(int argc, char* argv[]) {
 
         
         // Dibujamos los pixeles que generarán el fuego
-        for ( i = 0; i < 100; i++ ) {
-            x = rand() % fb_sx;
+        for (i = 0; i < 100; i++) {
+            x = rf[rf_c] % fb_sx;
+            rf_c = ++rf_c % MAXRAND;
 
             // Esto le da un poquito de randomness a la velocidad de
             // crecimiento del fuego.
-            if ( fire_anim < fb_sx) {
-                if ( fire_anim_delay++ > fire_anim_top ) {
+            if (fire_anim < fb_sx) {
+                if (fire_anim_delay++ > fire_anim_top ) {
                     fire_anim_delay = 0;
-                    fire_anim_top = rand() % 100;
+
+                    fire_anim_top = rf[rf_c] % 100;
+                    rf_c = ++rf_c % MAXRAND;
+
                     fire_anim++;                
                 }
             }
 
             // Evitamos que dibuje el fuego más allá del límite de la animación
-            if ( x > fire_anim ) continue;
+            if (x > fire_anim) continue;
 
             // Dibujamos 3 pixeles directo a la memoria. Más rápido que
             // usar tres PIXEL8            
-            memset ( (char *)(fb_buffer + (fb_sy - 1) * fb_finfo.line_length + x - 1), 255, 3 );
+            memset ((char *)(buffer + (fb_sy - 1) * fb_finfo.line_length + x - 1), 255, 3);
         }
         
         #ifdef PROFILING
@@ -148,17 +156,17 @@ int main(int argc, char* argv[]) {
         #endif
 
         // Dibujamos el logo si está activo.
-        if ( logo_state == 1) {
-            for ( y = 0; y < logo_h; y++ ) {
-                for ( x = 0; x < logo_w; x++ ) {
+        if (logo_state == 1) {
+            for (y = 0; y < logo_h; y++) {
+                for (x = 0; x < logo_w; x++) {
 
                     // Al color del fondo le añadimos el color del logo. Esto
                     // lo hará transparente, con algo de alias.
-                    lc = GETPIXEL8 (x + logo_x, y + logo_y) + *(logo + y * logo_w + x);
+                    lc = GETPIXEL8(x + logo_x, y + logo_y) + *(logo + y * logo_w + x);
                     if ( lc > 255 ) lc = 255;
                     
                     // Regresamos el pixel
-                    PIXEL8 ( x + logo_x, y + logo_y, (char)lc);
+                    PIXEL8(x + logo_x, y + logo_y, (char)lc);
                     
                 }
             }
@@ -168,40 +176,39 @@ int main(int argc, char* argv[]) {
         logo_x += logo_dir;
         
         // Evitamos que salga de los límites.
-        if ( logo_x < 0 ) {
+        if (logo_x < 0) {
             logo_x = 0;
             logo_dir = -logo_dir;
         }
-        if ( logo_x > fb_sx - logo_w ) {
+        if (logo_x > fb_sx - logo_w) {
             logo_x = fb_sx - logo_w;
             logo_dir = -logo_dir;
         }
         
         // Cada 300 frames, cambiamos el estado del logo
-        if ( logo_timer++ > 300 ) {
+        if (logo_timer++ > 300) {
             logo_timer = 0;
             logo_state = !logo_state; 
             
             // También le cambiamos de posición
-            logo_x = rand() % (fb_sx - logo_w);
+            logo_x = rf[rf_c] % (fb_sx - logo_w);
+            rf_c = ++rf_c & MAXRAND;
             
             // Y de dirección
             logo_dir = (rand() % 2) ? 1 : -1;
             
             // Añadimos un poco de brillo a la pantalla
-            for ( y = 0; y < fb_sy; y++ ) {
-                for ( x = 0; x < fb_sx; x++ ) {
+            for (y = 0; y < fb_sy; y++) {
+                for (x = 0; x < fb_sx; x++) {
                     
-                    lc = GETPIXEL8 (x, y) + 50 + rf[rf_c++];
-                    
-                    if ( rf_c == MAXRAND ) rf_c = 0;
+                    lc = GETPIXEL8(x, y) + 50 + (rf[rf_c] % 128);
+                    rf_c = ++rf_c % MAXRAND;
+
                     if ( lc > 254 ) lc = 254;   // 254 para no usar el negro de 255
                     
                     PIXEL8 ( x, y, (char)lc);
-                    
                 }
-            }
-            
+            }    
         }
                
         #ifdef PROFILING
@@ -228,8 +235,7 @@ int main(int argc, char* argv[]) {
                 // aritmética de punteros, la velocidad bajó 1ms más. A parte,
                 // es más paja :D
                 
-
-                p = (char *)(fb_buffer + y * fb_finfo.line_length + x);
+                p = (char *)(buffer + y * fb_finfo.line_length + x);
                 tmpval = *p;
                 p += fb_finfo.line_length - 1;
                 tmpval += *(p++);
