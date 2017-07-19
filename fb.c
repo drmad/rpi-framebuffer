@@ -95,30 +95,30 @@ inline void fb_pixel32 ( int x, int y, unsigned char color[] ) {
     int ofs = y * fb_finfo.line_length + (x << 2);
 
     // Copiamos los 4 bytes sin asco.
-    memcpy ( (char *)(buf_work + ofs), color, 4 );
+    memcpy ( (char *)(fb_buffer_pointer + ofs), color, 4 );
 }
 inline void fb_getpixel32 ( int x, int y, unsigned char *color ) {
     int ofs = y * fb_finfo.line_length + (x << 2);
 
     // Copiamos los 4 bytes sin asco.
-    memcpy (color, (char *)(buf_work + ofs), 4 );
+    memcpy (color, (char *)(fb_buffer_pointer + ofs), 4 );
 }
 
 inline void fb_pixel8 ( int x, int y, unsigned char color ) {
-    *( (char *)(buf_work + y * fb_finfo.line_length + x) ) = color;
+    *( (char *)(fb_buffer_pointer + y * fb_finfo.line_length + x) ) = color;
 }
 inline char fb_getpixel8 ( int x, int y ) {
     int ofs = y * fb_finfo.line_length + x;
 
-    return *( (char *)(buf_work + ofs) ) ;
+    return *((char *)(fb_buffer_pointer + ofs));
 }
 
 /** 
  *  Mueve el buffer al framebuffer. Esto necesita optimización
  */
-inline void fb_draw() {
-    
-    memcpy (fb_buffers, buf_work, fb_finfo.smem_len );
+inline void fb_draw() 
+{    
+    memcpy (fb_buffers, fb_buffer_pointer, fb_finfo.smem_len );
 }
 
 
