@@ -19,5 +19,9 @@ rotozoomer8: rotozoomer8.c fb.o
 fb.o: fb.c
 	$(CC) $(FLAGS) -c fb.c -o fb.o $(LIBS)
 
+png: fire8 rotozoomer8
+	$(FLAGS) = $(FLAGS) -DPNG
+	$(LIBS) = $(LIBS) -lpng
+
 clean:
 	rm -f *.o fb.o fire8 rotozoomer8
