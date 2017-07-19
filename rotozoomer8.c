@@ -13,6 +13,12 @@
 
 #include <sys/ioctl.h>
 
+#ifdef PNG
+#include <png.h>
+#include <zlib.h>
+#endif
+
+
 // Cuando se descomenta la siguiente línea, muestra en la consola el tiempo
 // en microsegundos que toma ejecutar ciertas partes de este programa. 
 // #define PROFILING
@@ -26,6 +32,10 @@
 // lookup tables
 int lt_sin[256];
 int lt_cos[256];
+
+#ifdef PNG
+int pngserial = 0;
+#endif
 
 float decrad(float dec) 
 {
@@ -232,6 +242,63 @@ int main(int argc, char* argv[]) {
         #endif
 
         memcpy(fb_buffers[0], buf_work, fb_size);
+
+        #ifdef PNG
+        char filename[100];
+        sprintf (filename, "output/%09u.png", pngserial++);
+
+        FILE *fp = fopen(filename, "wb");
+
+        png_structp png = png_create_write_struct(PNG_LIBPNG_VER_STRING, 
+        NULL, NULL, NULL);
+
+        png_infop info = png_create_info_struct(png);
+
+        setjmp(png_jmpbuf(png));
+
+        png_init_io(png, fp);
+
+        png_set_IHDR(png, info, 
+            fb_sx,
+            fb_sy,
+            8, 
+            PNG_COLOR_TYPE_PALETTE,
+            PNG_INTERLACE_NONE,
+            PNG_COMPRESSION_TYPE_DEFAULT,
+            PNG_FILTER_TYPE_DEFAULT
+        );
+
+        // La paleta de colores
+        unsigned paletteSize = 256;
+        //png_color* palette = (png_color*)png_malloc(png, paletteSize  * sizeof(png_color));
+        png_color palette[paletteSize];
+    
+        for (i = 0; i < paletteSize; i++) {
+            palette[i].red = r[i] >> 8;
+            palette[i].green = g[i] >> 8;
+            palette[i].blue = b[i] >> 8;
+        }
+        png_set_PLTE(png, info, palette, paletteSize);
+       
+        png_bytep *row_pointers[fb_sy];
+
+        for (i = 0; i < fb_sy; i++) {
+            row_pointers[i] = (png_bytep *)(buf_work + i * fb_sx);
+        }
+        
+        png_write_info(png, info);
+
+        png_write_image(png, row_pointers);
+        png_write_end(png, NULL);
+        fclose(fp);
+
+        if (png && info) {
+            png_destroy_write_struct(&png, &info);
+        }
+
+        printf("%s\n", filename);
+
+        #endif
 
         /*
         fb_buffer_idx = (fb_buffer_idx + 1) % 3;
